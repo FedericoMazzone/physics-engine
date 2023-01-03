@@ -85,6 +85,13 @@ class Entity:
     def get_kinetic_energy(self):
         return 0.5 * self.mass * (self.dx ** 2 + self.dy ** 2)
 
+    def apply_acc(self, acc, direction, dt):
+        delta_x = direction[0] - self.x
+        delta_y = direction[1] - self.y
+        ddx, ddy = vectorize_along_directions(acc, delta_x, delta_y)
+        self.dx += ddx * dt
+        self.dy += ddy * dt
+
 
 # def find_collisions(entities: list[Entity]):
 
@@ -292,7 +299,7 @@ manager = pygame_gui.UIManager((WIN_SIZE_X, WIN_SIZE_Y))
 y = 10
 hello_button = pygame_gui.elements.UIButton(
     relative_rect=pygame.Rect(ENV_SIZE_X + 10, y, 180, 30),
-    text='Say Hello',
+    text="Say Hello",
     manager=manager
 )
 y += 40
@@ -329,9 +336,33 @@ kinetic_dissipation_slider = pygame_gui.elements.UIHorizontalSlider(
 )
 y += 40
 
+grav_pull_button = pygame_gui.elements.UIButton(
+    relative_rect=pygame.Rect(ENV_SIZE_X + 10, y, 180, 30),
+    text="Insert pull",
+    manager=manager
+)
+y += 30
 
+grav_push_button = pygame_gui.elements.UIButton(
+    relative_rect=pygame.Rect(ENV_SIZE_X + 10, y, 180, 30),
+    text="Insert push",
+    manager=manager
+)
+y += 30
+
+clear_all_button = pygame_gui.elements.UIButton(
+    relative_rect=pygame.Rect(ENV_SIZE_X + 10, y, 180, 30),
+    text="Clear all",
+    manager=manager
+)
+y += 40
+
+
+cursor_action = None
 left_clicked = False
 right_clicked = False
+grav_push_sources = []
+grav_pull_sources = []
 
 
 clock = pygame.time.Clock()
@@ -349,6 +380,13 @@ while run:
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == hello_button:
                 print("Hello World!")
+            if event.ui_element == grav_push_button:
+                cursor_action = "grav_push"
+            if event.ui_element == grav_pull_button:
+                cursor_action = "grav_pull"
+            if event.ui_element == clear_all_button:
+                grav_push_sources.clear()
+                grav_pull_sources.clear()
 
         if event.type == pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
             if event.ui_element == friction_slider:
@@ -361,16 +399,24 @@ while run:
                     f"Kinetic diss. {KINETIC_DISSIPATION_FACTOR:.2f}")
 
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                left_clicked = True
-            if event.button == 3:
-                right_clicked = True
+            if cursor_action == None:
+                if event.button == 1:
+                    left_clicked = True
+                if event.button == 3:
+                    right_clicked = True
 
         if event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1:
-                left_clicked = False
-            if event.button == 3:
-                right_clicked = False
+            if cursor_action == None:
+                if event.button == 1:
+                    left_clicked = False
+                if event.button == 3:
+                    right_clicked = False
+            if cursor_action == "grav_push":
+                grav_push_sources.append(pygame.mouse.get_pos())
+                cursor_action = None
+            if cursor_action == "grav_pull":
+                grav_pull_sources.append(pygame.mouse.get_pos())
+                cursor_action = None
 
         manager.process_events(event)
 
@@ -394,21 +440,23 @@ while run:
         if userInput[pygame.K_DOWN]:
             entity.dy += USER_ACC * dt
 
+        # Update source-given acceleration
+        for source in grav_push_sources:
+            entity.apply_acc(-USER_ACC, source, dt)
+        for source in grav_pull_sources:
+            entity.apply_acc(USER_ACC, source, dt)
+
         # Update click-given acceleration
         if left_clicked or right_clicked:
             mouse_pos = pygame.mouse.get_pos()
             if mouse_pos[0] >= 0 and mouse_pos[0] < ENV_SIZE_X and mouse_pos[1] >= 0 and mouse_pos[1] < ENV_SIZE_Y:
                 # grav_acc = 6.67e-11 * entity.mass * \
-                #     1e+13 / (delta_x ** 2 + delta_y ** 2)
+                #     1e+13 / ((mouse_pos[0] - entity.x) **
+                #              2 + (mouse_pos[1] - entity.y) ** 2)
                 grav_acc = USER_ACC
                 if right_clicked:
                     grav_acc = -grav_acc
-                delta_x = mouse_pos[0] - entity.x
-                delta_y = mouse_pos[1] - entity.y
-                ddx, ddy = vectorize_along_directions(
-                    grav_acc, delta_x, delta_y)
-                entity.dx += ddx * dt
-                entity.dy += ddy * dt
+                entity.apply_acc(grav_acc, mouse_pos, dt)
 
         # Update environment-given acceleration
         entity.dx += ENV_ACC[0] * dt
