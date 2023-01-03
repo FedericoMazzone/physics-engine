@@ -357,12 +357,20 @@ clear_all_button = pygame_gui.elements.UIButton(
 )
 y += 40
 
+add_entity_button = pygame_gui.elements.UIButton(
+    relative_rect=pygame.Rect(ENV_SIZE_X + 10, y, 180, 30),
+    text="Add entity",
+    manager=manager
+)
+y += 40
+
 
 cursor_action = None
 left_clicked = False
 right_clicked = False
 grav_push_sources = []
 grav_pull_sources = []
+add_entity_pos = None
 
 
 clock = pygame.time.Clock()
@@ -387,6 +395,8 @@ while run:
             if event.ui_element == clear_all_button:
                 grav_push_sources.clear()
                 grav_pull_sources.clear()
+            if event.ui_element == add_entity_button:
+                cursor_action = "add_entity_set_position"
 
         if event.type == pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
             if event.ui_element == friction_slider:
@@ -411,11 +421,28 @@ while run:
                     left_clicked = False
                 if event.button == 3:
                     right_clicked = False
-            if cursor_action == "grav_push":
+            elif cursor_action == "grav_push":
                 grav_push_sources.append(pygame.mouse.get_pos())
                 cursor_action = None
-            if cursor_action == "grav_pull":
+            elif cursor_action == "grav_pull":
                 grav_pull_sources.append(pygame.mouse.get_pos())
+                cursor_action = None
+            elif cursor_action == "add_entity_set_position":
+                add_entity_pos = pygame.mouse.get_pos()
+                cursor_action = "add_entity_set_speed"
+            elif cursor_action == "add_entity_set_speed":
+                curr_mouse_pos = pygame.mouse.get_pos()
+                radius = random.randint(6, 8)
+                entity = Entity(
+                    radius,
+                    math.pi * (radius ** 2),
+                    add_entity_pos[0],
+                    add_entity_pos[1],
+                    curr_mouse_pos[0] - add_entity_pos[0],
+                    curr_mouse_pos[1] - add_entity_pos[1]
+                )
+                entities.append(entity)
+                add_entity_pos = None
                 cursor_action = None
 
         manager.process_events(event)
