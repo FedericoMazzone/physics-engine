@@ -27,7 +27,6 @@ WIN_SIZE_Y = ENV_SIZE_Y
 FPS = 60
 VISC_FRIC_COEFF = 0.0
 KINETIC_DISSIPATION_FACTOR = 0.0
-# TODO: reduce speed only along the collision direction
 
 
 def sign(x):
@@ -152,33 +151,85 @@ def tunnelling_correction(entity1: Entity, entity2: Entity) -> None:
     entity2.y -= corr_coeff2 * delta_delta_y
 
 
+# # Handle collision between two entities.
+# def collision_response(entity1: Entity, entity2: Entity) -> None:
+
+#     mass_coeff1 = 2 * entity2.mass / (entity1.mass + entity2.mass)
+#     mass_coeff2 = 2 * entity1.mass / (entity1.mass + entity2.mass)
+
+#     delta_dx = entity1.dx - entity2.dx
+#     delta_dy = entity1.dy - entity2.dy
+
+#     delta_x = entity1.x - entity2.x
+#     delta_y = entity1.y - entity2.y
+
+#     scalar = delta_dx * delta_x + delta_dy * delta_y
+#     norm = delta_x * delta_x + delta_y * delta_y
+#     if norm == 0:
+#         print("ERROR: concentric entities")
+#         return
+
+#     entity1.dx -= mass_coeff1 * scalar * delta_x / norm
+#     entity1.dy -= mass_coeff1 * scalar * delta_y / norm
+#     entity1.dx *= 1 - KINETIC_DISSIPATION_FACTOR
+#     entity1.dy *= 1 - KINETIC_DISSIPATION_FACTOR
+
+#     entity2.dx += mass_coeff2 * scalar * delta_x / norm
+#     entity2.dy += mass_coeff2 * scalar * delta_y / norm
+#     entity2.dx *= 1 - KINETIC_DISSIPATION_FACTOR
+#     entity2.dy *= 1 - KINETIC_DISSIPATION_FACTOR
+
+
 # Handle collision between two entities.
 def collision_response(entity1: Entity, entity2: Entity) -> None:
 
-    mass_coeff1 = 2 * entity2.mass / (entity1.mass + entity2.mass)
-    mass_coeff2 = 2 * entity1.mass / (entity1.mass + entity2.mass)
+    m1 = entity1.mass
+    m2 = entity2.mass
 
-    delta_dx = entity1.dx - entity2.dx
-    delta_dy = entity1.dy - entity2.dy
-
-    delta_x = entity1.x - entity2.x
-    delta_y = entity1.y - entity2.y
-
-    scalar = delta_dx * delta_x + delta_dy * delta_y
-    norm = delta_x * delta_x + delta_y * delta_y
-    if norm == 0:
+    n_x = entity1.x - entity2.x
+    n_y = entity1.y - entity2.y
+    n_norm = math.sqrt(n_x ** 2 + n_y ** 2)
+    if n_norm == 0:
         print("ERROR: concentric entities")
         return
+    un_x = n_x / n_norm
+    un_y = n_y / n_norm
+    ut_x = -un_y
+    ut_y = un_x
 
-    entity1.dx -= mass_coeff1 * scalar * delta_x / norm
-    entity1.dy -= mass_coeff1 * scalar * delta_y / norm
-    entity1.dx *= 1 - KINETIC_DISSIPATION_FACTOR
-    entity1.dy *= 1 - KINETIC_DISSIPATION_FACTOR
+    v1_x = entity1.dx
+    v1_y = entity1.dy
+    v2_x = entity2.dx
+    v2_y = entity2.dy
+    v1_n = v1_x * un_x + v1_y * un_y
+    v2_n = v2_x * un_x + v2_y * un_y
+    v1_t = v1_x * ut_x + v1_y * ut_y
+    v2_t = v2_x * ut_x + v2_y * ut_y
 
-    entity2.dx += mass_coeff2 * scalar * delta_x / norm
-    entity2.dy += mass_coeff2 * scalar * delta_y / norm
-    entity2.dx *= 1 - KINETIC_DISSIPATION_FACTOR
-    entity2.dy *= 1 - KINETIC_DISSIPATION_FACTOR
+    K = 1 - KINETIC_DISSIPATION_FACTOR
+
+    # a = m1 * (m1 + m2)
+    # b = -m1 * (m1 * v1_n + m2 * v2_n)
+    # c = (m1 * v1_n + m2 * v2_n) ** 2 - K * m2 * \
+    #     (m1 * (v1_n ** 2) + m2 * (v2_n ** 2))
+    # v1final_n_new = (-b + math.sqrt(b ** 2 - a * c)) / a
+    # v2final_n_new = m1 * (v1_n - v1final_n_new) / m2 + v2_n
+
+    v1final_n = K * (v1_n * (m1 - m2) + 2 * m2 * v2_n) / (m1 + m2)
+    v2final_n = K * (v2_n * (m2 - m1) + 2 * m1 * v1_n) / (m1 + m2)
+
+    v1final_t = v1_t
+    v2final_t = v2_t
+
+    v1final_x = v1final_n * un_x + v1final_t * ut_x
+    v1final_y = v1final_n * un_y + v1final_t * ut_y
+    v2final_x = v2final_n * un_x + v2final_t * ut_x
+    v2final_y = v2final_n * un_y + v2final_t * ut_y
+
+    entity1.dx = v1final_x
+    entity1.dy = v1final_y
+    entity2.dx = v2final_x
+    entity2.dy = v2final_y
 
 
 def compute_viscous_friction(friction_coeff, radius, speed):
@@ -203,7 +254,7 @@ while len(entities) < NUM_ENTITIES:
     else:
         entities.append(entity)
 
-# speed = 2
+# speed = 20
 # entities.append(Entity(20, 10, 100, 200, speed, 0))
 # entities.append(Entity(40, 5, 300, 200, -speed, 0))
 # entities.append(Entity(20, 10, 200, 100, 0, speed))
